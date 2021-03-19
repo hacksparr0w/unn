@@ -13,21 +13,8 @@ MNIST_SCALAR_FORMAT_HEADER = 2049
 MatrixShape = namedtuple("MatrixShape", ["rows", "columns"])
 
 
-def array2d(shape, value=lambda row, column: 0):
-    return [[value(i, j) for i in range(shape[1])] for j in range(shape[0])]
-
-
-
-def mmap(matrix, mapper):
-    # TODO(hacksparr0w): The API of this function is not ideal at all
-
-    result = Matrix.zero(matrix.shape)
-
-    for i in range(matrix.shape.rows):
-        for j in range(matrix.shape.columns):
-            result[i][j] = mapper(i, j)
-
-    return result
+def array2d(shape, value):
+    return [[value(i, j) for j in range(shape[1])] for i in range(shape[0])]
 
 
 class Matrix:
@@ -46,17 +33,17 @@ class Matrix:
         self.shape = MatrixShape(rows, columns)
 
     def __add__(self, other):
-        mapper = None
+        value = None
 
         if isinstance(other, Matrix):
             if self.shape != other.shape:
                 raise ValueError("Matrices must have the same shape")
 
-            mapper = lambda i, j: self[i][j] + other[i][j]
+            value = lambda i, j: self[i][j] + other[i][j]
         else:
-            mapper = lambda i, j: self[i][j] + other
+            value = lambda i, j: self[i][j] + other
 
-        return mmap(self, mapper)
+        return Matrix.build(self.shape, value)
 
     def __eq__(self, other):
         if not isinstance(other, Matrix):
@@ -100,7 +87,7 @@ class Matrix:
         return matrix
 
     def __neg__(self):
-        return mmap(self, lambda i, j: -self[i][j])
+        return Matrix.build(self.shape, lambda i, j: -self[i][j])
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -117,42 +104,44 @@ class Matrix:
         return "Matrix([\n{}\n])".format("\n".join(buffer))
 
     def __rpow__(self, other):
-        return mmap(self, lambda i, j: other ** self[i][j])
+        return Matrix.build(self.shape, lambda i, j: other ** self[i][j])
 
     def __rtruediv__(self, other):
-        return mmap(self, lambda i, j: other / self[i][j])
+        return Matrix.build(self.shape, lambda i, j: other / self[i][j])
 
     def __truediv__(self, other):
-        mapper = None
+        value = None
 
         if isinstance(other, Matrix):
             if self.shape != other.shape:
                 raise ValueError("Matrices must have the same shape")
 
-            mapper = lambda i, j: self[i][j] / other[i][j]
+            value = lambda i, j: self[i][j] / other[i][j]
         else:
-            mapper = lambda i, j: self[i][j] / other
+            value = lambda i, j: self[i][j] / other
 
-        return mmap(self, mapper)
+        return Matrix.build(self.shape, value)
 
     def reshape(self, shape):
         source = iter(self)
-         # TODO(hacksparr0w): Fix the unnecessary creation of the zero matrix
-        target = Matrix.zero(shape)
 
-        return mmap(target, lambda i, j: next(source))
+        return Matrix.build(shape, lambda i, j: next(source))
+
+    @classmethod
+    def build(cls, shape, value):
+        return cls(array2d(shape, value))
 
     @classmethod
     def random(cls, shape):
-        return cls(array2d(shape, lambda i, j: random.random()))
+        return cls.build(shape, lambda i, j: random.random())
 
     @classmethod
     def zero(cls, shape):
-        return cls(array2d(shape, lambda i, j: 0))
+        return cls.build(shape, lambda i, j: 0)
 
 
-def sigmoid(z):
-    return 1 / (1 + math.e ** (-z))
+def sigmoid(x):
+    return 1 / (1 + math.e ** (-x))
 
 
 class Neuralnet:
