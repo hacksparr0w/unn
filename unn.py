@@ -10,6 +10,12 @@ MNIST_MATRIX_FORMAT_HEADER = 2051
 MNIST_SCALAR_FORMAT_HEADER = 2049
 
 
+TRAINING_IMAGE_DATA_PATH = "./data/train-images-idx3-ubyte.gz"
+TRAINING_LABEL_DATA_PATH = "./data/train-labels-idx1-ubyte.gz"
+TRAINING_EPOCHS = 1000
+TRAINING_MINI_BATCH_SIZE = 100
+
+
 MatrixShape = namedtuple("MatrixShape", ["rows", "columns"])
 
 
@@ -86,6 +92,19 @@ class Matrix:
 
         return matrix
 
+    def __mul__(self, other):
+        value = None
+
+        if isinstance(other, Matrix):
+            if self.shape != other.shape:
+                raise ValueError("Matrices must have the same shape")
+
+            value = lambda i, j: self[i][j] * other[i][j]
+        else:
+            value = lambda i, j: self[i][j] * other
+
+        return Matrix.build(self.shape, value)
+
     def __neg__(self):
         return Matrix.build(self.shape, lambda i, j: -self[i][j])
 
@@ -102,6 +121,9 @@ class Matrix:
             buffer.append(f"{preffix}[{body}]{suffix}")
 
         return "Matrix([\n{}\n])".format("\n".join(buffer))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     def __rpow__(self, other):
         return Matrix.build(self.shape, lambda i, j: other ** self[i][j])
@@ -161,6 +183,9 @@ class Neuralnet:
 
         return a
 
+    def backpropagate(self, ):
+        pass
+
 
 def read_ubyte(stream):
     return int.from_bytes(stream.read(1), signed=False, byteorder="big")
@@ -206,6 +231,36 @@ def decode_mnist_scalar_data(stream):
     return scalars
 
 
+def load_training_data():
+    images = None
+    labels = None
+
+    with gzip.open(TRAINING_IMAGE_DATA_PATH, "rb") as stream:
+        data = decode_mnist_matrix_data(stream)
+        images = []
+
+        for matrix in data:
+            images.append(matrix.reshape((784, 1)))
+
+    with gzip.open(TRAINING_LABEL_DATA_PATH, "rb") as stream:
+        labels = decode_mnist_scalar_data(stream)
+
+    return list(zip(images, labels))
+
+
+def train(neuralnet, training_data, epochs, batch_size):
+    n = len(training_data)
+
+    for _ in range(epochs):
+        random.shuffle(training_data)
+        batches = [
+            training_data[i:i + batch_size] for i in range(0, n, batch_size)
+        ]
+
+        for batch in batches:
+            pass
+
+
 def main():
     logging.basicConfig(
         format="%(levelname)s %(message)s",
@@ -216,13 +271,11 @@ def main():
 
     neuralnet = Neuralnet((784, 30, 10))
 
-    logging.info("Loading MNIST dataset")
+    logging.info("Loading MNIST training dataset")
 
-    with gzip.open("./data/train-images-idx3-ubyte.gz", "rb") as stream:
-        data = decode_mnist_matrix_data(stream)[0].reshape((784, 1))
-        result = neuralnet.feedforward(data)
+    training_data = load_training_data()
 
-        print(result)
+    print(training_data[0])
 
 
 if __name__ == "__main__":
