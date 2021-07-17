@@ -1,19 +1,6 @@
-import gzip
-import logging
-import math
 import random
 
 from collections import namedtuple
-
-
-MNIST_MATRIX_FORMAT_HEADER = 2051
-MNIST_SCALAR_FORMAT_HEADER = 2049
-
-
-TRAINING_IMAGE_DATA_PATH = "./data/train-images-idx3-ubyte.gz"
-TRAINING_LABEL_DATA_PATH = "./data/train-labels-idx1-ubyte.gz"
-TRAINING_EPOCHS = 1000
-TRAINING_MINI_BATCH_SIZE = 100
 
 
 MatrixShape = namedtuple("MatrixShape", ["rows", "columns"])
@@ -105,6 +92,9 @@ class Matrix:
 
         return Matrix.build(self.shape, value)
 
+    def __pow__(self, other):
+        return Matrix.build(self.shape, lambda i, j: self[i][j] ** other)
+
     def __neg__(self):
         return Matrix.build(self.shape, lambda i, j: -self[i][j])
 
@@ -128,8 +118,24 @@ class Matrix:
     def __rpow__(self, other):
         return Matrix.build(self.shape, lambda i, j: other ** self[i][j])
 
+    def __rsub__(self, other):
+        return Matrix.build(self.shape, lambda i, j: other - self[i][j])
+
     def __rtruediv__(self, other):
         return Matrix.build(self.shape, lambda i, j: other / self[i][j])
+
+    def __sub__(self, other):
+        value = None
+
+        if isinstance(other, Matrix):
+            if self.shape != other.shape:
+                raise ValueError("Matrices must have the same shape")
+
+            value = lambda i, j: self[i][j] - other[i][j]
+        else:
+            value = lambda i, j: self[i][j] - other
+
+        return Matrix.build(self.shape, value)
 
     def __truediv__(self, other):
         value = None
@@ -149,6 +155,12 @@ class Matrix:
 
         return Matrix.build(shape, lambda i, j: next(source))
 
+    def transpose(self):
+        return Matrix.build(
+            (self.shape.columns, self.shape.rows),
+            lambda i, j: self[j][i]
+        )
+
     @classmethod
     def build(cls, shape, value):
         return cls(array2d(shape, value))
@@ -160,123 +172,3 @@ class Matrix:
     @classmethod
     def zero(cls, shape):
         return cls.build(shape, lambda i, j: 0)
-
-
-def sigmoid(x):
-    return 1 / (1 + math.e ** (-x))
-
-
-class Neuralnet:
-    def __init__(self, sizes):
-        self.sizes = sizes
-        self.weights = [
-            Matrix.random((i, j)) for i, j in zip(sizes[1:], sizes[:-1])
-        ]
-
-        self.biases = [Matrix.random((i, 1)) for i in sizes[1:]]
-
-    def feedforward(self, value):
-        a = value
-
-        for w, b in zip(self.weights, self.biases):
-            a = sigmoid((w @ a) + b)
-
-        return a
-
-    def backpropagate(self, ):
-        pass
-
-
-def read_ubyte(stream):
-    return int.from_bytes(stream.read(1), signed=False, byteorder="big")
-
-
-def read_uint32_be(stream):
-    return int.from_bytes(stream.read(4), byteorder="big")
-
-
-def decode_mnist_matrix_data(stream):
-    header = read_uint32_be(stream)
-
-    if header != MNIST_MATRIX_FORMAT_HEADER:
-        raise IOError("The stream is not of the MNIST matrix format")
-
-    items = read_uint32_be(stream)
-    rows = read_uint32_be(stream)
-    columns = read_uint32_be(stream)
-
-    matrices = [Matrix.zero((rows, columns)) for _ in range(items)]
-
-    for i in range(items):
-        for j in range(rows):
-            for k in range(columns):
-                matrices[i][j][k] = read_ubyte(stream)
-
-    return matrices
-
-
-def decode_mnist_scalar_data(stream):
-    header = read_uint32_be(stream)
-
-    if header != MNIST_SCALAR_FORMAT_HEADER:
-        raise IOError("The stream is not of the MNIST scalar format")
-
-    items = read_uint32_be(stream)
-
-    scalars = [0 for _ in range(items)]
-
-    for i in range(items):
-        scalars[i] = read_ubyte(stream)
-
-    return scalars
-
-
-def load_training_data():
-    images = None
-    labels = None
-
-    with gzip.open(TRAINING_IMAGE_DATA_PATH, "rb") as stream:
-        data = decode_mnist_matrix_data(stream)
-        images = []
-
-        for matrix in data:
-            images.append(matrix.reshape((784, 1)))
-
-    with gzip.open(TRAINING_LABEL_DATA_PATH, "rb") as stream:
-        labels = decode_mnist_scalar_data(stream)
-
-    return list(zip(images, labels))
-
-
-def train(neuralnet, training_data, epochs, batch_size):
-    n = len(training_data)
-
-    for _ in range(epochs):
-        random.shuffle(training_data)
-        batches = [
-            training_data[i:i + batch_size] for i in range(0, n, batch_size)
-        ]
-
-        for batch in batches:
-            pass
-
-
-def main():
-    logging.basicConfig(
-        format="%(levelname)s %(message)s",
-        level=logging.INFO
-    )
-
-    logging.info("Initializing empty neuralnet")
-
-    neuralnet = Neuralnet((784, 30, 10))
-
-    logging.info("Loading MNIST training dataset")
-
-    training_data = load_training_data()
-
-    print(training_data[0])
-
-
-if __name__ == "__main__":
-    main()
