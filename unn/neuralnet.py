@@ -67,13 +67,25 @@ class Neuralnet:
         return nabla_w, nabla_b
 
 
-def train(net, data, epochs, batch_size, learning_rate):
-    n = len(data)
+def train(
+    net,
+    training_data,
+    epochs,
+    batch_size,
+    learning_rate,
+    test_data=None
+):
+    evaluation = []
+    training_data_length = len(training_data)
+    test_data_length = len(test_data) if test_data else None
 
     for epoch in range(epochs):
-        random.shuffle(data)
+        random.shuffle(training_data)
         batches = [
-            data[i:i + batch_size] for i in range(0, n, batch_size)
+            training_data[i:i + batch_size] for i in range(
+                0,
+                training_data_length, batch_size
+            )
         ]
 
         for batch in batches:
@@ -96,4 +108,13 @@ def train(net, data, epochs, batch_size, learning_rate):
                 for b, nb in zip(net.biases, nabla_b)
             ]
 
+        total = np.sum(
+            (net.feedforward(x) - y) ** 2 for x, y in test_data
+        )
+
+        mse = np.linalg.norm(total / test_data_length)
+        evaluation.append(mse)
+
         logging.info(f"Epoch {epoch} completed.")
+
+    return evaluation
